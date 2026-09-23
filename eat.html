@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>今天吃什么？</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root{
+    --ink:#3b2a20;
+    --muted:#9c8577;
+    --orange:#ff6b1a;
+  }
+  html, body { height: 100%; }
+  body{
+    margin:0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: radial-gradient(circle at 20% 0%, #fff6e5 0%, #ffe7c7 42%, #ffd6a4 100%);
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding: 26px 16px 44px;
+  }
+
+  .app{ width:100%; max-width:460px; display:flex; flex-direction:column; gap:16px; }
+
+  /* 标题 */
+  .hero{ text-align:center; }
+  .hero h1{ margin:0; font-size:30px; letter-spacing:2px; }
+  .hero p{ margin:8px 0 0; color:var(--muted); font-size:13.5px; }
+
+  /* 主卡片 */
+  .card{
+    background:#fff;
+    border-radius:26px;
+    padding:20px 18px 18px;
+    box-shadow: 0 18px 40px rgba(214,120,40,.18);
+  }
+
+  /* 分类 */
+  .cats{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:18px; }
+  .cat{
+    border:none; cursor:pointer;
+    padding:7px 13px; border-radius:999px;
+    font-size:13px; color:#8a6a55; background:#fff3e4;
+    transition: all .18s;
+  }
+  .cat:hover{ background:#ffe7cd; }
+  .cat.active{
+    background:linear-gradient(135deg,#ff9a4d,#ff6b1a);
+    color:#fff;
+    box-shadow:0 6px 14px rgba(255,120,40,.35);
+  }
+
+  /* 结果区 */
+  .result{
+    text-align:center;
+    background: linear-gradient(160deg,#fffaf3,#fff1e0);
+    border:1px dashed #ffd9b3;
+    border-radius:20px;
+    padding:22px 14px 26px;
+    min-height:152px;
+    display:flex; flex-direction:column; justify-content:center; gap:10px;
+  }
+  .hint{ margin:0; font-size:13px; color:var(--muted); min-height:18px; line-height:1.5; }
+  .dish{
+    font-size:38px; font-weight:800; letter-spacing:2px;
+    color:#e2560f; word-break:break-all; line-height:1.2;
+  }
+  .dish.pop{ animation: pop .45s cubic-bezier(.2,1.6,.4,1); }
+  @keyframes pop{
+    0%{ transform:scale(.6); opacity:.3; }
+    60%{ transform:scale(1.12); opacity:1; }
+    100%{ transform:scale(1); }
+  }
+
+  /* 主按钮 */
+  .main-btn{
+    margin-top:16px;
+    width:100%;
+    border:none; cursor:pointer;
+    padding:16px;
+    border-radius:18px;
+    font-size:18px; font-weight:700; letter-spacing:3px; color:#fff;
+    background:linear-gradient(135deg,#ff9a3c,#ff5f1f);
+    box-shadow:0 10px 22px rgba(255,100,30,.35);
+    transition: transform .12s, box-shadow .12s, filter .12s;
+  }
+  .main-btn:hover{ filter:brightness(1.04); }
+  .main-btn:active{ transform: translateY(2px) scale(.99); box-shadow:0 4px 12px rgba(255,100,30,.3); }
+  .main-btn:disabled{ opacity:.65; cursor:default; }
+
+  /* 次要按钮 */
+  .actions{ display:flex; gap:8px; margin-top:12px; }
+  .ghost-btn{
+    flex:1;
+    border:1px solid #ffd6b0; background:#fff; color:#c85a17;
+    padding:10px 4px; border-radius:14px; font-size:13px; cursor:pointer;
+    transition: all .15s; font-family:inherit;
+  }
+  .ghost-btn:hover{ background:#fff4e8; }
+  .ghost-btn:active{ transform: scale(.97); }
+
+  /* 历史记录 */
+  .panel{ background:rgba(255,255,255,.72); border-radius:20px; padding:14px 16px; }
+  .panel-head{
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:13px; font-weight:700; color:#a9714a; margin-bottom:10px;
+  }
+  .panel-sub{ font-weight:400; color:#c3a48f; font-size:12px; }
+  .history{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    background:#fff; border:1px solid #ffe0c4; color:#a2601f;
+    padding:6px 12px; border-radius:999px; font-size:13px;
+  }
+  .empty{ color:#c3a48f; font-size:13px; }
+
+  .foot{ text-align:center; color:#c0a48f; font-size:12px; margin:0; }
+
+  /* 提示条 */
+  .toast{
+    position:fixed; left:50%; bottom:36px; transform:translate(-50%,10px);
+    background:rgba(60,35,20,.92); color:#fff;
+    padding:10px 20px; border-radius:999px; font-size:14px;
+    opacity:0; transition: all .28s; pointer-events:none; z-index:99;
+    max-width:80vw; text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="hero">
+    <h1>今天吃什么？</h1>
+    <p>选择困难症终结器，让命运替你点菜。</p>
+  </header>
+
+  <main class="card">
+    <div class="cats" id="cats"></div>
+
+    <div class="result">
+      <p class="hint" id="hint">你的胃正在等待一个答案。</p>
+          <div class="dish" id="dish">？</div>
+    </div>
+
+    <button class="main-btn" id="rollBtn">帮我选一个</button>
+
+    <div class="actions">
+      <button class="ghost-btn" id="againBtn">再抽一次</button>
+      <button class="ghost-btn" id="okBtn">就它了</button>
+      <button class="ghost-btn" id="clearBtn">清空记录</button>
+    </div>
+  </main>
+
+  <section class="panel">
+    <div class="panel-head">
+      <span>干饭档案</span>
+      <span class="panel-sub">最近 5 次</span>
+    </div>
+    <div class="history" id="history"></div>
+  </section>
+
+  <p class="foot">没有后端 · 打开即玩 · 记录只存在你自己的浏览器里</p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============ 菜品库 ============ */
+  const DISHES = [
+    { n: '麻辣烫',     c: ['火锅', '夜宵'] },
+    { n: '冒菜',       c: ['火锅'] },
+    { n: '火锅',       c: ['火锅'] },
+    { n: '串串香',     c: ['火锅', '夜宵'] },
+    { n: '麻辣香锅',   c: ['火锅'] },
+    { n: '烤鱼',       c: ['火锅'] },
+    { n: '酸菜鱼',     c: ['火锅', '米饭'] },
+
+    { n: '水煮肉片',   c: ['米饭'] },
+    { n: '回锅肉',     c: ['米饭'] },
+    { n: '宫保鸡丁',   c: ['米饭'] },
+    { n: '鱼香肉丝',   c: ['米饭'] },
+    { n: '麻婆豆腐',   c: ['米饭'] },
+    { n: '番茄炒蛋',   c: ['米饭'] },
+    { n: '青椒肉丝',   c: ['米饭'] },
+    { n: '黄焖鸡',     c: ['米饭'] },
+    { n: '猪脚饭',     c: ['米饭'] },
+    { n: '炒饭',       c: ['米饭', '快餐'] },
+    { n: '煲仔饭',     c: ['米饭'] },
+    { n: '肠粉',       c: ['米饭', '快餐'] },
+    { n: '食堂套餐',   c: ['米饭', '随便'] },
+
+    { n: '拉面',       c: ['面食'] },
+    { n: '兰州拉面',   c: ['面食'] },
+    { n: '重庆小面',   c: ['面食'] },
+    { n: '热干面',     c: ['面食', '快餐'] },
+    { n: '螺蛳粉',     c: ['面食', '夜宵'] },
+    { n: '酸辣粉',     c: ['面食', '夜宵'] },
+    { n: '米线',       c: ['面食'] },
+    { n: '饺子',       c: ['面食', '夜宵'] },
+    { n: '馄饨',       c: ['面食', '夜宵'] },
+    { n: '小笼包',     c: ['面食', '快餐'] },
+
+    { n: '煎饼果子',   c: ['快餐'] },
+    { n: '肉夹馍',     c: ['快餐'] },
+    { n: '凉皮',       c: ['快餐', '轻食'] },
+    { n: '炸鸡',       c: ['快餐', '夜宵'] },
+    { n: '汉堡',       c: ['快餐'] },
+    { n: '披萨',       c: ['快餐'] },
+    { n: '寿司',       c: ['快餐', '轻食'] },
+    { n: '关东煮',     c: ['快餐', '夜宵'] },
+    { n: '便利店饭团', c: ['快餐', '随便'] },
+
+    { n: '烧烤',       c: ['烧烤', '夜宵'] },
+    { n: '烤肉',       c: ['烧烤', '夜宵'] },
+    { n: '炸串',       c: ['烧烤', '夜宵'] },
+    { n: '小龙虾',     c: ['夜宵'] },
+
+    { n: '沙拉',       c: ['轻食'] },
+    { n: '轻食碗',     c: ['轻食'] },
+    { n: '砂锅粥',     c: ['轻食', '夜宵'] },
+
+    { n: '随便',       c: ['随便'] }
+  ];
+
+  const CATS = ['全部', '快餐', '米饭', '面食', '火锅', '烧烤', '轻食', '夜宵', '随便'];
+  const STORE_KEY = 'eat_what_history_v1';
+
+  /* ============ DOM ============ */
+  const catsEl    = document.getElementById('cats');
+  const hintEl    = document.getElementById('hint');
+  const dishEl    = document.getElementById('dish');
+  const rollBtn   = document.getElementById('rollBtn');
+  const againBtn  = document.getElementById('againBtn');
+  const okBtn     = document.getElementById('okBtn');
+  const clearBtn  = document.getElementById('clearBtn');
+  const historyEl = document.getElementById('history');
+   /* ============ 状态 ============ */
+  let currentCat  = '全部';
+  let rolling     = false;
+  let lastDish    = null;
+  let repeatCount = 0;
+  let rollCount   = 0;
+  let currentPick = null;
+  let history     = loadHistory();
+
+  /* ============ 本地存储 ============ */
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveHistory() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(history));
+    } catch (e) { /* 隐私模式忽略 */ }
+  }
+
+  /* ============ 渲染分类 ============ */
+  function renderCats() {
+    catsEl.innerHTML = '';
+    CATS.forEach(function (cat) {
+      const btn = document.createElement('button');
+      btn.className = 'cat' + (cat === currentCat ? ' active' : '');
+      btn.textContent = cat;
+      btn.addEventListener('click', function () {
+        if (rolling) return;
+        currentCat = cat;
+        renderCats();
+      });
+      catsEl.appendChild(btn);
+    });
+  }
+
+  /* ============ 渲染历史 ============ */
+  function renderHistory() {
+    if (!history.length) {
+      historyEl.innerHTML = '<span class="empty">还没有抽过，点一下开饭。</span>';
+      return;
+    }
+    historyEl.innerHTML = history
+      .map(function (item) {
+        return '<span class="chip">' + item.n + '</span>';
+      })
+      .join('');
+  }
+
+  /* ============ 取菜池 ============ */
+  function getPool() {
+    if (currentCat === '全部') return DISHES;
+    const pool = DISHES.filter(function (d) { return d.c.indexOf(currentCat) > -1; });
+    return pool.length ? pool : DISHES;
+  }
+
+  /* ============ 抽取主流程 ============ */
+  function roll() {
+    if (rolling) return;
+    rolling = true;
+    rollBtn.disabled = true;
+
+    const pool = getPool();
+
+    dishEl.classList.remove('pop');
+    hintEl.textContent = '锅铲翻飞中……';
+
+    let elapsed = 0;
+    let delay = 45;
+    const total = 780;
+
+    function tick() {
+      const tmp = pool[Math.floor(Math.random() * pool.length)];
+      dishEl.textContent = tmp.n;
+
+      elapsed += delay;
+      if (elapsed < total) {
+        if (elapsed > total * 0.55) delay *= 1.18; // 逐渐减速
+        setTimeout(tick, delay);
+      } else {
+        finish(pool);
+      }
+    }
+    tick();
+  }
+    /* ============ 定格结果 ============ */
+  function finish(pool) {
+    let pick = pool[Math.floor(Math.random() * pool.length)];
+    let extra = '';
+
+    // 彩蛋：抽到「随便」，真的替你随便一个
+    if (pick.n === '随便') {
+      const all = DISHES.filter(function (d) { return d.n !== '随便'; });
+      pick = all[Math.floor(Math.random() * all.length)];
+      extra = '你说随便，那我就真替你决定了。';
+    }
+
+    currentPick = pick.n;
+    rollCount++;
+
+    // 连续抽到同一道
+    if (lastDish === pick.n) {
+      repeatCount++;
+    } else {
+      repeatCount = 1;
+      lastDish = pick.n;
+    }
+
+    // 文案
+    const templates = [
+      function (n) { return '命运选中了：' + n; },
+      function (n) { return '就吃 ' + n + ' 吧，别纠结了。'; },
+      function (n) { return '胃说它今天想 ' + n + '。'; },
+      function (n) { return '天意：' + n + '。'; },
+      function (n) { return '再纠结就饿过点了，' + n + '。'; },
+      function (n) { return '听我的，' + n + '，现在就去。'; }
+    ];
+
+    let msg = extra || templates[Math.floor(Math.random() * templates.length)](pick.n);
+
+    if (repeatCount >= 2) {
+      msg = '你跟「' + pick.n + '」有缘，直接去吧。';
+    }
+    if (rollCount >= 8 && repeatCount < 2) {
+      msg += ' 选择困难症已确诊。';
+    }
+
+    hintEl.textContent = msg;
+    dishEl.textContent = pick.n;
+    dishEl.classList.remove('pop');
+    void dishEl.offsetWidth; // 强制重排，重放动画
+    dishEl.classList.add('pop');
+
+    // 记录
+    history.unshift({ n: pick.n, t: Date.now() });
+    history = history.slice(0, 5);
+    saveHistory();
+    renderHistory();
+
+    rolling = false;
+    rollBtn.disabled = false;
+  }
+
+  /* ============ Toast ============ */
+  function toast(text) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = text;
+    document.body.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('show'); });
+    setTimeout(function () {
+      el.classList.remove('show');
+      setTimeout(function () { el.remove(); }, 300);
+    }, 1500);
+  }
+
+  /* ============ 事件绑定 ============ */
+  rollBtn.addEventListener('click', roll);
+  againBtn.addEventListener('click', roll);
+
+  okBtn.addEventListener('click', function () {
+    if (!currentPick) {
+      toast('先抽一个再说。');
+      return;
+    }
+    toast('已锁定：' + currentPick + '，饿意 +100');
+  });
+
+  clearBtn.addEventListener('click', function () {
+    history = [];
+    lastDish = null;
+    repeatCount = 0;
+    rollCount = 0;
+    currentPick = null;
+    saveHistory();
+    renderHistory();
+    hintEl.textContent = '记忆已清空，重新开始纠结吧。';
+    dishEl.textContent = '？';
+    dishEl.classList.remove('pop');
+    toast('干饭档案已清空');
+  });
+
+  /* ============ 初始化 ============ */
+  renderCats();
+  renderHistory();
+})();
+</script>
+</body>
+</html>
